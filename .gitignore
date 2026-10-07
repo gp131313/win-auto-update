@@ -1,0 +1,8 @@
+logs/
+last-run.txt
+REBOOT-REQUIRED
+*.default
+*.migrated
+*.log
+*.bak*
+dist/

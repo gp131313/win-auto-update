@@ -1,0 +1,35 @@
+{
+  "SelfUpdate": true,
+  "Winget": true,
+  "WindowsUpdate": { "Enabled": true, "Drivers": false, "FeatureUpgrades": false },
+  "GitHubApps": [
+    {
+      "Name": "Claude Usage Widget",
+      "Repo": "gp131313/claude-usage-widget",
+      "Asset": "^ClaudeUsageWidget-Setup-Silent\\.exe$",
+      "Installed": { "Type": "Registry", "Key": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ClaudeUsageWidget" },
+      "Install": { "Type": "Exe", "Args": "", "DirArg": "/dir=\"{dir}\"" }
+    },
+    {
+      "Name": "Home VPN Kit",
+      "Repo": "gp131313/home-vpn-kit",
+      "Asset": "^HomeVpnKit-Setup-Silent\\.exe$",
+      "Installed": { "Type": "Registry", "Key": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\HomeVpnKit" },
+      "Install": { "Type": "Exe", "Args": "", "DirArg": "/dir=\"{dir}\"" }
+    },
+    {
+      "Name": "TrayPingMonitor-VPN",
+      "Repo": "gp131313/TrayPingMonitor-VPN",
+      "Asset": "^TrayPingMonitor-VPN-v.*-win-x64\\.zip$",
+      "Installed": { "Type": "File", "Path": "%LOCALAPPDATA%\\Programs\\TrayPingMonitor\\TrayPingMonitor.exe" },
+      "Install": { "Type": "Zip", "Exe": "%LOCALAPPDATA%\\Programs\\TrayPingMonitor\\TrayPingMonitor.exe" }
+    },
+    {
+      "Name": "Tabby",
+      "Repo": "Eugeny/tabby",
+      "Asset": "^tabby-.*-setup-x64\\.exe$",
+      "Installed": { "Type": "File", "Path": "%LOCALAPPDATA%\\Programs\\Tabby\\Tabby.exe" },
+      "Install": { "Type": "Exe", "Args": "/S /currentuser" }
+    }
+  ]
+}

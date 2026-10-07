@@ -8,7 +8,7 @@
 # Windows PowerShell 5.1 compatible, ASCII only.
 param([switch]$Force, [switch]$NoSelfUpdate, [switch]$NoWinget, [switch]$NoGitHubApps, [switch]$NoWindowsUpdate)
 
-$KitVersion = '1.0.0'
+$KitVersion = '1.0.1'
 $KitRepo    = 'gp131313/win-auto-update'
 
 $ErrorActionPreference = 'Continue'
@@ -17,11 +17,20 @@ $ProgressPreference    = 'SilentlyContinue'
 $Dir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LogD   = Join-Path $Dir 'logs'
 $Stamp  = Join-Path $Dir 'last-run.txt'
-$Down   = Join-Path $env:LOCALAPPDATA 'WinAutoUpdate\download'
 $today  = Get-Date -Format 'yyyy-MM-dd'
-New-Item -ItemType Directory -Force $LogD, $Down | Out-Null
+New-Item -ItemType Directory -Force $LogD | Out-Null
 $Log = Join-Path $LogD ('update-' + $today + '.log')
 $Gh  = @{ 'User-Agent' = 'win-auto-update/' + $KitVersion }
+
+$cfgFile = Join-Path $Dir 'config.json'
+$cfg = $null
+if (Test-Path $cfgFile) { try { $cfg = Get-Content $cfgFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $cfgErr = $_.Exception.Message } }
+if (-not $cfg) { $cfg = New-Object psobject }
+function Cfg([string]$n, $def) { if ($cfg.PSObject.Properties[$n] -and $null -ne $cfg.$n) { return $cfg.$n } return $def }
+# downloads: %LOCALAPPDATA%\WinAutoUpdate\download, or "DownloadDir" from config.json (an antivirus may hold
+# scripts and installers that run from AppData - point it at a folder the antivirus trusts)
+$Down = [Environment]::ExpandEnvironmentVariables([string](Cfg 'DownloadDir' (Join-Path $env:LOCALAPPDATA 'WinAutoUpdate\download')))
+New-Item -ItemType Directory -Force $Down | Out-Null
 
 function Log([string]$m) { Add-Content $Log ('{0:HH:mm:ss} {1}' -f (Get-Date), $m) -Encoding UTF8 }
 function LogLines($lines) { $lines | ForEach-Object { "$_" } | Where-Object { $_ -match '\S' -and $_ -notmatch '^\s*[-\\|/]\s*$' -and $_ -notmatch '[\u2588\u2592]' } | ForEach-Object { Add-Content $Log ('  ' + $_) -Encoding UTF8 } }
@@ -67,13 +76,16 @@ function Get-LatestRelease([string]$Repo) {
 
 # ------------------------------------------------------------------ start
 if (-not $Force -and (Test-Path $Stamp) -and ((Get-Content $Stamp -Raw).Trim() -eq $today)) { exit 0 }
-$cfgFile = Join-Path $Dir 'config.json'
-$cfg = $null
-if (Test-Path $cfgFile) { try { $cfg = Get-Content $cfgFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { Log ('config.json is not valid JSON: ' + $_.Exception.Message) } }
-if (-not $cfg) { $cfg = New-Object psobject }
-function Cfg([string]$n, $def) { if ($cfg.PSObject.Properties[$n] -and $null -ne $cfg.$n) { return $cfg.$n } return $def }
-
 Log ('start: win-auto-update ' + $KitVersion + ', user ' + $env:USERNAME + ', computer ' + $env:COMPUTERNAME + ', force=' + [bool]$Force)
+if ($cfgErr) { Log ('config.json is not valid JSON, defaults used: ' + $cfgErr) }
+
+# waits for the process itself, not for its children (Start-Process -Wait in PowerShell 5.1 also waits for every
+# descendant - an installer that starts the program it installed would never return); $null when it timed out
+function Wait-Exit($Proc, [int]$Minutes) {
+    if ($Proc.WaitForExit($Minutes * 60000)) { return $Proc.ExitCode }
+    Log ('  still running after ' + $Minutes + ' min - not waiting any longer')
+    return $null
+}
 $online = $true
 try { [void][Net.Dns]::GetHostAddresses('api.github.com') } catch { $online = $false }
 if (-not $online) { Log 'no DNS for api.github.com - skipped, retry at the next trigger'; exit 0 }
@@ -103,8 +115,9 @@ if (-not $NoSelfUpdate -and (Cfg 'SelfUpdate' $true)) {
                 $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
                 $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ('"' + (Join-Path $Dir 'Update-Apps.ps1') + '"'), '-Force', '-NoSelfUpdate')
                 if ($NoWinget) { $argv += '-NoWinget' }; if ($NoGitHubApps) { $argv += '-NoGitHubApps' }; if ($NoWindowsUpdate) { $argv += '-NoWindowsUpdate' }
-                $p = Start-Process $ps -ArgumentList $argv -Wait -PassThru -WindowStyle Hidden
-                exit $p.ExitCode
+                $p = Start-Process $ps -ArgumentList $argv -PassThru -WindowStyle Hidden
+                $rc = Wait-Exit $p 230
+                exit $(if ($null -eq $rc) { 1 } else { $rc })
             } else { Log 'self-update: Update-Apps.ps1 not found in the archive - skipped' }
         } else { Log 'self-update: download or hash failed - skipped' }
     } elseif ($rel) { Log ('self-update: ' + $KitVersion + ' is current (latest ' + $rel.tag_name + ')') }
@@ -183,10 +196,11 @@ function Install-GitHubApp($app, $rel, $cur) {
             $a = [string]$app.Install.Args
             if ($app.Install.DirArg -and $cur.Dir) { $a = ($a + ' ' + ($app.Install.DirArg -replace '\{dir\}', $cur.Dir)).Trim() }
             Log ('  run: ' + $asset.name + ' ' + $a)
-            if ($a) { $p = Start-Process $file -ArgumentList $a -Wait -PassThru -WindowStyle Hidden }
-            else    { $p = Start-Process $file -Wait -PassThru -WindowStyle Hidden }
-            Log ('  exit code ' + $p.ExitCode)
-            return ($p.ExitCode -in 0, 3010)
+            if ($a) { $p = Start-Process $file -ArgumentList $a -PassThru -WindowStyle Hidden }
+            else    { $p = Start-Process $file -PassThru -WindowStyle Hidden }
+            $rc = Wait-Exit $p 30
+            Log ('  exit code ' + $rc)
+            return ($rc -in 0, 3010)
         }
         'Zip' {
             # unpack next to the installed exe: stop the program, replace the files, start it again (not elevated, via explorer)

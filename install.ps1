@@ -18,7 +18,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
 if (-not $SourceDir) { $SourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
 
-$KitVersion = '1.0.0'
+$KitVersion = '1.0.1'
 $Task       = 'Win Auto Update'
 $LegacyTask = 'Winget Auto Update'
 $AppsKey    = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinAutoUpdate'

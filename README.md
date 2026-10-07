@@ -89,6 +89,11 @@ Install.cmd -Check               показать, что будет сдела�
 `"Enabled": false` выключает запись. При обновлении kit'а ваши `config.json` и `exclude.txt` не затираются,
 новые версии по умолчанию ложатся рядом как `*.default`.
 
+`"DownloadDir"` — куда класть скачанные установщики (по умолчанию `%LOCALAPPDATA%\WinAutoUpdate\download`).
+Если антивирус (например, Kaspersky) «держит» скрипты и установщики, запущенные из AppData или Program Files,
+поставьте kit в доверенную антивирусу папку (`Install.cmd -InstallDir C:\Trusted\WinAutoUpdate`) и укажите
+`"DownloadDir": "C:\\Trusted\\WinAutoUpdate\\download"`.
+
 ## Журнал и ручной запуск
 
 Журнал — `logs\update-<дата>.log` в папке установки, хранится 60 дней. Один полный проход в день
@@ -109,6 +114,7 @@ powershell -ExecutionPolicy Bypass -File "C:\Program Files\WinAutoUpdate\Update-
 - Обновление Home VPN Kit на несколько секунд перезапускает туннель.
 - winget иногда не может скачать пакет через VPN (`InternetOpenUrl() failed`) — проход повторится завтра.
 - Неподписанный API GitHub ограничен 60 запросами в час с одного адреса; kit делает 5–6.
+- Установщик, который не завершился за 30 минут, kit перестаёт ждать (сам процесс не трогает) и идёт дальше.
 
 ## Поддержать
 

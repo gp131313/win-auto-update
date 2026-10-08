@@ -8,7 +8,7 @@
 # Windows PowerShell 5.1 compatible, ASCII only.
 param([switch]$Force, [switch]$NoSelfUpdate, [switch]$NoWinget, [switch]$NoGitHubApps, [switch]$NoWindowsUpdate)
 
-$KitVersion = '1.1.0'
+$KitVersion = '1.1.1'
 $KitRepo    = 'gp131313/win-auto-update'
 
 $ErrorActionPreference = 'Continue'
@@ -272,8 +272,10 @@ if (-not $NoWindowsUpdate -and $wu -and $wu.Enabled -ne $false) {
         $session = New-Object -ComObject Microsoft.Update.Session
         $session.ClientApplicationID = 'win-auto-update'
         $searcher = $session.CreateUpdateSearcher()
-        $crit = "IsInstalled=0 and IsHidden=0 and Type='Software'"
-        if ($wu.Drivers) { $crit = "IsInstalled=0 and IsHidden=0" }
+        $crit = "IsInstalled=0 and IsHidden=0"
+        if (-not $wu.Drivers) { $crit += " and Type='Software'" }
+        # feature updates (new Windows versions) are offered with a different deployment action: the default search hides them
+        if ($wu.FeatureUpgrades) { $crit += " and DeploymentAction=*" }
         Log ('windows update: searching (' + $crit + ')')
         $res = $searcher.Search($crit)
         $todo = New-Object -ComObject Microsoft.Update.UpdateColl

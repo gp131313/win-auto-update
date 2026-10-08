@@ -2,6 +2,7 @@
   "SelfUpdate": true,
   "Winget": true,
   "WindowsUpdate": { "Enabled": true, "Drivers": false, "FeatureUpgrades": false },
+  "VpnBypass": { "Enabled": false, "Hosts": [] },
   "GitHubApps": [
     {
       "Name": "Claude Usage Widget",

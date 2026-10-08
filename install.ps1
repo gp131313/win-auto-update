@@ -18,11 +18,12 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
 if (-not $SourceDir) { $SourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
 
-$KitVersion = '1.0.2'
+$KitVersion = '1.1.0'
 $Task       = 'Win Auto Update'
 $LegacyTask = 'Winget Auto Update'
 $AppsKey    = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinAutoUpdate'
-$Files      = 'Update-Apps.ps1', 'install.ps1', 'uninstall.ps1', 'Install.cmd', 'Uninstall.cmd', 'config.json', 'exclude.txt', 'README.md', 'LICENSE'
+$Files      = 'Update-Apps.ps1', 'Vpn-Bypass.ps1', 'install.ps1', 'uninstall.ps1', 'Install.cmd', 'Uninstall.cmd', 'config.json', 'exclude.txt', 'README.md', 'LICENSE'
+$TaskVpn    = 'Win Auto Update (VPN bypass)'
 
 function Say([string]$t, [string]$c = 'Gray') { Write-Host $t -ForegroundColor $c }
 function Step([string]$t) { Write-Host ''; Write-Host ('== ' + $t) -ForegroundColor Cyan }
@@ -103,6 +104,30 @@ if (-not $Check) {
         -Description ('win-auto-update ' + $KitVersion + ': winget, GitHub releases, Windows Update (' + $InstallDir + ')') | Out-Null
     $t = Get-ScheduledTask -TaskName $Task
     Ok ('{0}, next run {1}' -f $t.State, (Get-ScheduledTaskInfo -TaskName $Task).NextRunTime)
+}
+
+# ------------------------------------------------------------------ VPN bypass task (config.json: VpnBypass.Enabled)
+$vbOn = $false
+try { $vbOn = [bool]((Get-Content (Join-Path $InstallDir 'config.json') -Raw -Encoding UTF8 | ConvertFrom-Json).VpnBypass.Enabled) } catch { }
+Step ('Scheduled task "' + $TaskVpn + '"')
+if ($vbOn) {
+    Plan 'every 10 minutes and at logon: routes for Windows Update servers around a full-tunnel VPN (Vpn-Bypass.ps1)'
+    if (-not $Check) {
+        $act2 = New-ScheduledTaskAction -Execute (Join-Path $env:SystemRoot 'System32\conhost.exe') `
+                -Argument ('--headless "' + $ps + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + (Join-Path $InstallDir 'Vpn-Bypass.ps1') + '"')
+        $tr1 = New-ScheduledTaskTrigger -AtLogOn -User $me.Name; $tr1.Delay = 'PT1M'
+        $tr2 = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) -RepetitionInterval (New-TimeSpan -Minutes 10)
+        $st2 = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -Hidden
+        Register-ScheduledTask -TaskName $TaskVpn -Action $act2 -Trigger $tr1, $tr2 -Principal $pr -Settings $st2 -Force `
+            -Description 'win-auto-update: keeps Windows Update traffic out of the VPN tunnel (host routes via the physical gateway)' | Out-Null
+        Ok ((Get-ScheduledTask -TaskName $TaskVpn).State)
+    }
+} else {
+    Say '   VpnBypass.Enabled is not set in config.json - not registered'
+    if (-not $Check -and (Get-ScheduledTask -TaskName $TaskVpn -ErrorAction SilentlyContinue)) {
+        & (Join-Path $InstallDir 'Vpn-Bypass.ps1') -Remove
+        Unregister-ScheduledTask -TaskName $TaskVpn -Confirm:$false; Say '   removed the old task'
+    }
 }
 
 # ------------------------------------------------------------------ winget pins

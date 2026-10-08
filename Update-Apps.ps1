@@ -8,7 +8,7 @@
 # Windows PowerShell 5.1 compatible, ASCII only.
 param([switch]$Force, [switch]$NoSelfUpdate, [switch]$NoWinget, [switch]$NoGitHubApps, [switch]$NoWindowsUpdate)
 
-$KitVersion = '1.0.2'
+$KitVersion = '1.1.0'
 $KitRepo    = 'gp131313/win-auto-update'
 
 $ErrorActionPreference = 'Continue'
@@ -265,6 +265,9 @@ if (-not $NoGitHubApps) {
 # ------------------------------------------------------------------ 4. Windows Update
 $wu = Cfg 'WindowsUpdate' $null
 if (-not $NoWindowsUpdate -and $wu -and $wu.Enabled -ne $false) {
+    # full-tunnel VPN: route the update servers around it first (see Vpn-Bypass.ps1)
+    $vb = Cfg 'VpnBypass' $null
+    if ($vb -and $vb.Enabled -and (Test-Path (Join-Path $Dir 'Vpn-Bypass.ps1'))) { & (Join-Path $Dir 'Vpn-Bypass.ps1'); Log 'vpn bypass: routes for the update servers refreshed (logs\vpn-bypass.log)' }
     try {
         $session = New-Object -ComObject Microsoft.Update.Session
         $session.ClientApplicationID = 'win-auto-update'

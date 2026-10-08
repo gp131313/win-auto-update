@@ -12,6 +12,8 @@ $AppsKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinAutoUpd
 $dir = (Get-ItemProperty $AppsKey -ErrorAction SilentlyContinue).InstallLocation
 if (-not $dir) { $dir = Split-Path -Parent $MyInvocation.MyCommand.Path }
 Unregister-ScheduledTask -TaskName 'Win Auto Update' -Confirm:$false -ErrorAction SilentlyContinue
+if (Test-Path (Join-Path $dir 'Vpn-Bypass.ps1')) { & (Join-Path $dir 'Vpn-Bypass.ps1') -Remove }
+Unregister-ScheduledTask -TaskName 'Win Auto Update (VPN bypass)' -Confirm:$false -ErrorAction SilentlyContinue
 Remove-Item $AppsKey -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $env:LOCALAPPDATA 'WinAutoUpdate') -Recurse -Force -ErrorAction SilentlyContinue
 # the folder holds this very script: delete it after we exit

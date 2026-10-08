@@ -21,10 +21,12 @@ MAX, Claude Usage Widget, домашний VPN-kit и обновления Windo
 - **Claude Usage Widget** — `ClaudeUsageWidget-Setup-Silent.exe`, в ту же папку, где он стоит;
 - **Home VPN Kit** — `HomeVpnKit-Setup-Silent.exe`, в ту же папку (настройки и пароль VPN установщик сохраняет сам). Обновляется только установка, сделанная установщиком kit'а (есть запись в «Приложениях»); «ручные» копии скриптов не трогаются;
 - **TrayPingMonitor-VPN** — zip: индикатор останавливается, exe подменяется, индикатор запускается снова;
-- **Tabby** — `tabby-<версия>-setup-x64.exe /S /currentuser` (Tabby, поставленный своим установщиком, winget не видит).
+- **Tabby** — `tabby-<версия>-setup-x64.exe /S /currentuser` (Tabby, поставленный своим установщиком, winget не видит);
+- **TDM** — не GitHub, а лента electron-builder (`"Feed": ".../latest.yml"`): версия, имя файла и SHA512 берутся
+  из `latest.yml`, установка `tdm-<версия>.exe /S /currentuser`.
 
-Чего нет на машине — пропускается («not installed - skipped»). PowerShell 7, MAX, 7-Zip и всё остальное
-«обычное» идёт через winget.
+Чего нет на машине — пропускается («not installed - skipped»). PowerShell 7, MAX, Telegram Desktop, 7-Zip и всё
+остальное «обычное» идёт через winget.
 
 ## Установка
 
@@ -82,7 +84,8 @@ Install.cmd -Check               показать, что будет сдела�
 }
 ```
 
-Запись `GitHubApps`: `Asset` — регулярное выражение по имени файла релиза; `Installed` — как узнать, что
+Запись `GitHubApps`: источник — `Repo` (релизы GitHub) или `Feed` (URL `latest.yml` electron-builder);
+`Asset` — регулярное выражение по имени файла релиза; `Installed` — как узнать, что
 стоит и какой версии: `Registry` (ключ Uninstall, поля `DisplayVersion` и `InstallLocation`), `RegistryName`
 (поиск по `DisplayName` во всех ветках Uninstall) или `File` (версия exe); `Install` — `Exe` (запуск файла
 с `Args`; `DirArg` подставляет папку установки, `{dir}`) или `Zip` (распаковать поверх `Exe`, перезапустить).

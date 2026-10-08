@@ -25,6 +25,13 @@
       "Install": { "Type": "Zip", "Exe": "%LOCALAPPDATA%\\Programs\\TrayPingMonitor\\TrayPingMonitor.exe" }
     },
     {
+      "Name": "TDM",
+      "Feed": "https://s3.tdm.mos.ru/fileupload/standalone/latest.yml",
+      "Asset": "^tdm-.*\\.exe$",
+      "Installed": { "Type": "File", "Path": "%LOCALAPPDATA%\\Programs\\TDM\\TDM.exe" },
+      "Install": { "Type": "Exe", "Args": "/S /currentuser" }
+    },
+    {
       "Name": "Tabby",
       "Repo": "Eugeny/tabby",
       "Asset": "^tabby-.*-setup-x64\\.exe$",

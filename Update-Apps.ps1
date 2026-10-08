@@ -8,7 +8,7 @@
 # Windows PowerShell 5.1 compatible, ASCII only.
 param([switch]$Force, [switch]$NoSelfUpdate, [switch]$NoWinget, [switch]$NoGitHubApps, [switch]$NoWindowsUpdate)
 
-$KitVersion = '1.0.1'
+$KitVersion = '1.0.2'
 $KitRepo    = 'gp131313/win-auto-update'
 
 $ErrorActionPreference = 'Continue'
@@ -56,6 +56,13 @@ function Get-Download([string]$Url, [string]$Name) {
 
 # verifies $File against the SHA256SUMS.txt asset of the release (sha256sum format); $true when ok or no sums file
 function Test-ReleaseHash($Release, [string]$File) {
+    # electron-builder feeds carry a base64 SHA512 of the file
+    if ($Release.PSObject.Properties['sha512'] -and $Release.sha512) {
+        $sha = [Security.Cryptography.SHA512]::Create()
+        $have = [Convert]::ToBase64String($sha.ComputeHash([IO.File]::ReadAllBytes($File)))
+        if ($have -ne $Release.sha512) { Log ('  SHA512 mismatch for ' + (Split-Path $File -Leaf)); return $false }
+        return $true
+    }
     $sumA = $Release.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1
     if (-not $sumA) { Log '  no SHA256SUMS.txt in the release - hash not checked'; return $true }
     $sums = Get-Download $sumA.browser_download_url ('SHA256SUMS-' + [IO.Path]::GetFileNameWithoutExtension($File) + '.txt')
@@ -72,6 +79,20 @@ function Test-ReleaseHash($Release, [string]$File) {
 function Get-LatestRelease([string]$Repo) {
     try { return Invoke-RestMethod ('https://api.github.com/repos/' + $Repo + '/releases/latest') -Headers $Gh -UseBasicParsing -TimeoutSec 60 }
     catch { Log ('  GitHub API: ' + $_.Exception.Message); return $null }
+}
+
+# electron-builder "generic" feed (latest.yml next to the installers): version, path, sha512 -> same shape as a GitHub release
+function Get-LatestFeed([string]$Url) {
+    try {
+        $y = (Invoke-WebRequest $Url -Headers $Gh -UseBasicParsing -TimeoutSec 60).Content
+        if ($y -is [byte[]]) { $y = [Text.Encoding]::UTF8.GetString($y) }
+        $ver = [regex]::Match($y, '(?m)^version:\s*(\S+)').Groups[1].Value
+        $path = [regex]::Match($y, '(?m)^path:\s*(\S+)').Groups[1].Value
+        $sha = [regex]::Match($y, '(?m)^sha512:\s*(\S+)').Groups[1].Value
+        if (-not $ver -or -not $path) { Log ('  feed has no version/path: ' + $Url); return $null }
+        $base = $Url.Substring(0, $Url.LastIndexOf('/') + 1)
+        return [pscustomobject]@{ tag_name = $ver; sha512 = $sha; assets = @([pscustomobject]@{ name = $path; browser_download_url = ($base + $path) }) }
+    } catch { Log ('  feed: ' + $_.Exception.Message); return $null }
 }
 
 # ------------------------------------------------------------------ start
@@ -228,7 +249,7 @@ if (-not $NoGitHubApps) {
         if ($app.Enabled -eq $false) { continue }
         $cur = Get-InstalledApp $app
         if (-not $cur) { Log ('github ' + $app.Name + ': not installed - skipped'); continue }
-        $rel = Get-LatestRelease $app.Repo
+        $rel = $(if ($app.Feed) { Get-LatestFeed $app.Feed } else { Get-LatestRelease $app.Repo })
         if (-not $rel) { $rcAll = 1; continue }
         $new = To-Version $rel.tag_name
         if (-not $new) { Log ('github ' + $app.Name + ': cannot read a version from tag ' + $rel.tag_name); continue }

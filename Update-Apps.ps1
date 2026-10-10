@@ -1,14 +1,15 @@
 # Update-Apps.ps1 - win-auto-update: one daily pass that updates everything on a Windows machine.
 #   1. the kit itself (latest release of gp131313/win-auto-update, SHA256 checked)
 #   2. winget packages ("winget upgrade --all"), except the Ids pinned in exclude.txt
-#   3. apps that are not in winget: latest GitHub release of each entry in config.json (GitHubApps)
+#   3. apps that are not in winget: latest GitHub release of each entry in config.json (GitHubApps);
+#      private repositories with the token from Set-GitHubToken.ps1 ("Private": true)
 #   4. Windows Update: search, download, install; never reboots by itself
 # Run by the scheduled task "Win Auto Update" (your account, highest privileges): at logon +10 min and daily.
 # At most one full pass per day (last-run.txt); -Force runs it again. Log: logs\update-<date>.log.
 # Windows PowerShell 5.1 compatible, ASCII only.
 param([switch]$Force, [switch]$NoSelfUpdate, [switch]$NoWinget, [switch]$NoGitHubApps, [switch]$NoWindowsUpdate)
 
-$KitVersion = '1.1.1'
+$KitVersion = '1.2.0'
 $KitRepo    = 'gp131313/win-auto-update'
 
 $ErrorActionPreference = 'Continue'
@@ -21,6 +22,22 @@ $today  = Get-Date -Format 'yyyy-MM-dd'
 New-Item -ItemType Directory -Force $LogD | Out-Null
 $Log = Join-Path $LogD ('update-' + $today + '.log')
 $Gh  = @{ 'User-Agent' = 'win-auto-update/' + $KitVersion }
+# token for private repositories (Set-GitHubToken.ps1): DPAPI machine scope, %ProgramData%\WinAutoUpdate\github-token.dat
+$GhToken = $null
+$tokFile = Join-Path $env:ProgramData 'WinAutoUpdate\github-token.dat'
+if (Test-Path $tokFile) {
+    try {
+        Add-Type -AssemblyName System.Security
+        $GhToken = [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($tokFile), $null, 'LocalMachine'))
+    } catch { $tokErr = $_.Exception.Message }
+}
+# headers for a GitHub request: with the token when the app is private
+function Gh-Headers([bool]$Private, [string]$Accept) {
+    $h = @{} + $Gh
+    if ($Private -and $GhToken) { $h['Authorization'] = 'Bearer ' + $GhToken }
+    if ($Accept) { $h['Accept'] = $Accept }
+    return $h
+}
 
 $cfgFile = Join-Path $Dir 'config.json'
 $cfg = $null
@@ -45,17 +62,24 @@ function To-Version([string]$s) {
     try { return [version]($p -join '.') } catch { return $null }
 }
 
-function Get-Download([string]$Url, [string]$Name) {
+function Get-Download([string]$Url, [string]$Name, $Headers) {
     $out = Join-Path $Down $Name
+    if (-not $Headers) { $Headers = $Gh }
     foreach ($try in 1..3) {
-        try { Invoke-WebRequest $Url -OutFile $out -UseBasicParsing -Headers $Gh -TimeoutSec 900; return $out }
+        try { Invoke-WebRequest $Url -OutFile $out -UseBasicParsing -Headers $Headers -TimeoutSec 900; return $out }
         catch { Log ('  download retry ' + $try + ': ' + $_.Exception.Message); Start-Sleep 5 }
     }
     return $null
 }
 
+# an asset of a release: the public download link, or the API link with the token for a private repository
+function Get-Asset($Asset, [bool]$Private, [string]$Name) {
+    if ($Private) { return Get-Download $Asset.url $Name (Gh-Headers $true 'application/octet-stream') }
+    return Get-Download $Asset.browser_download_url $Name
+}
+
 # verifies $File against the SHA256SUMS.txt asset of the release (sha256sum format); $true when ok or no sums file
-function Test-ReleaseHash($Release, [string]$File) {
+function Test-ReleaseHash($Release, [string]$File, [bool]$Private = $false) {
     # electron-builder feeds carry a base64 SHA512 of the file
     if ($Release.PSObject.Properties['sha512'] -and $Release.sha512) {
         $sha = [Security.Cryptography.SHA512]::Create()
@@ -65,7 +89,7 @@ function Test-ReleaseHash($Release, [string]$File) {
     }
     $sumA = $Release.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1
     if (-not $sumA) { Log '  no SHA256SUMS.txt in the release - hash not checked'; return $true }
-    $sums = Get-Download $sumA.browser_download_url ('SHA256SUMS-' + [IO.Path]::GetFileNameWithoutExtension($File) + '.txt')
+    $sums = Get-Asset $sumA $Private ('SHA256SUMS-' + [IO.Path]::GetFileNameWithoutExtension($File) + '.txt')
     if (-not $sums) { return $false }
     $leaf = Split-Path $File -Leaf
     $line = Get-Content $sums | Where-Object { $_ -match ('\s\*?' + [regex]::Escape($leaf) + '\s*$') } | Select-Object -First 1
@@ -76,8 +100,8 @@ function Test-ReleaseHash($Release, [string]$File) {
     return $true
 }
 
-function Get-LatestRelease([string]$Repo) {
-    try { return Invoke-RestMethod ('https://api.github.com/repos/' + $Repo + '/releases/latest') -Headers $Gh -UseBasicParsing -TimeoutSec 60 }
+function Get-LatestRelease([string]$Repo, [bool]$Private = $false) {
+    try { return Invoke-RestMethod ('https://api.github.com/repos/' + $Repo + '/releases/latest') -Headers (Gh-Headers $Private $null) -UseBasicParsing -TimeoutSec 60 }
     catch { Log ('  GitHub API: ' + $_.Exception.Message); return $null }
 }
 
@@ -99,6 +123,7 @@ function Get-LatestFeed([string]$Url) {
 if (-not $Force -and (Test-Path $Stamp) -and ((Get-Content $Stamp -Raw).Trim() -eq $today)) { exit 0 }
 Log ('start: win-auto-update ' + $KitVersion + ', user ' + $env:USERNAME + ', computer ' + $env:COMPUTERNAME + ', force=' + [bool]$Force)
 if ($cfgErr) { Log ('config.json is not valid JSON, defaults used: ' + $cfgErr) }
+if ($tokErr) { Log ('github token: cannot read ' + $tokFile + ': ' + $tokErr) }
 
 # waits for the process itself, not for its children (Start-Process -Wait in PowerShell 5.1 also waits for every
 # descendant - an installer that starts the program it installed would never return); $null when it timed out
@@ -208,9 +233,10 @@ function Get-InstalledApp($app) {
 function Install-GitHubApp($app, $rel, $cur) {
     $asset = $rel.assets | Where-Object { $_.name -match $app.Asset } | Select-Object -First 1
     if (-not $asset) { Log ('  asset not found: ' + $app.Asset); return $false }
-    $file = Get-Download $asset.browser_download_url $asset.name
+    $priv = [bool]$app.Private
+    $file = Get-Asset $asset $priv $asset.name
     if (-not $file) { return $false }
-    if (-not (Test-ReleaseHash $rel $file)) { return $false }
+    if (-not (Test-ReleaseHash $rel $file $priv)) { return $false }
     Unblock-File $file -ErrorAction SilentlyContinue
     switch ($app.Install.Type) {
         'Exe' {
@@ -222,6 +248,23 @@ function Install-GitHubApp($app, $rel, $cur) {
             $rc = Wait-Exit $p 30
             Log ('  exit code ' + $rc)
             return ($rc -in 0, 3010)
+        }
+        'ZipScript' {
+            # unpack and run a script from the archive (default install.ps1) with administrator rights; its exit code decides
+            $x = Join-Path $Down ([IO.Path]::GetFileNameWithoutExtension($asset.name))
+            if (Test-Path $x) { Remove-Item $x -Recurse -Force }
+            Expand-Archive $file $x -Force
+            Get-ChildItem $x -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
+            $sn = [string]$app.Install.Script; if (-not $sn) { $sn = 'install.ps1' }
+            $sc = Get-ChildItem $x -Recurse -Filter $sn | Select-Object -First 1
+            if (-not $sc) { Log ('  ' + $sn + ' not found in the archive'); return $false }
+            $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $a = ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $sc.FullName + '" ' + [string]$app.Install.Args).Trim()
+            Log ('  run: ' + $sn + ' ' + [string]$app.Install.Args)
+            $p = Start-Process $ps -ArgumentList $a -PassThru -WindowStyle Hidden
+            $rc = Wait-Exit $p 30
+            Log ('  exit code ' + $rc)
+            return ($rc -eq 0)
         }
         'Zip' {
             # unpack next to the installed exe: stop the program, replace the files, start it again (not elevated, via explorer)
@@ -248,8 +291,10 @@ if (-not $NoGitHubApps) {
     foreach ($app in @(Cfg 'GitHubApps' @())) {
         if ($app.Enabled -eq $false) { continue }
         $cur = Get-InstalledApp $app
-        if (-not $cur) { Log ('github ' + $app.Name + ': not installed - skipped'); continue }
-        $rel = $(if ($app.Feed) { Get-LatestFeed $app.Feed } else { Get-LatestRelease $app.Repo })
+        if (-not $cur -and -not $app.InstallIfMissing) { Log ('github ' + $app.Name + ': not installed - skipped'); continue }
+        if ($app.Private -and -not $GhToken) { Log ('github ' + $app.Name + ': private repository and no token (Set-GitHubToken.ps1) - skipped'); continue }
+        if (-not $cur) { $cur = @{ Version = $null; Dir = $null } }
+        $rel = $(if ($app.Feed) { Get-LatestFeed $app.Feed } else { Get-LatestRelease $app.Repo ([bool]$app.Private) })
         if (-not $rel) { $rcAll = 1; continue }
         $new = To-Version $rel.tag_name
         if (-not $new) { Log ('github ' + $app.Name + ': cannot read a version from tag ' + $rel.tag_name); continue }

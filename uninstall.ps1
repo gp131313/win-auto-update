@@ -16,6 +16,7 @@ if (Test-Path (Join-Path $dir 'Vpn-Bypass.ps1')) { & (Join-Path $dir 'Vpn-Bypass
 Unregister-ScheduledTask -TaskName 'Win Auto Update (VPN bypass)' -Confirm:$false -ErrorAction SilentlyContinue
 Remove-Item $AppsKey -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $env:LOCALAPPDATA 'WinAutoUpdate') -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $env:ProgramData 'WinAutoUpdate') -Recurse -Force -ErrorAction SilentlyContinue   # the GitHub token
 # the folder holds this very script: delete it after we exit
 $cmd = 'Start-Sleep 2; Remove-Item -LiteralPath "' + $dir + '" -Recurse -Force'
 Start-Process powershell.exe -ArgumentList ('-NoProfile -WindowStyle Hidden -Command ' + $cmd)

@@ -102,6 +102,16 @@ Windows Update) резолвит хосты Windows Update и Delivery Optimizat
 `*.update.microsoft.com`, `*.windowsupdate.com`, `*.delivery.mp.microsoft.com`, `*.prod.do.dsp.mp.microsoft.com`,
 `go.microsoft.com`, `download.microsoft.com`). Журнал — `logs\vpn-bypass.log`.
 
+`"Private": true` — релизы приватного репозитория. Токен GitHub (fine-grained, права «Contents: read-only» на
+нужные репозитории) сохраняется один раз: `Set-GitHubToken.ps1` от администратора (скрытый ввод; для скриптов —
+`-Stdin` или переменная `WAU_GITHUB_TOKEN`; `-Check` проверяет, что GitHub его принимает; `-Remove` удаляет).
+Хранится в `%ProgramData%\WinAutoUpdate\github-token.dat`, зашифрован DPAPI (область компьютера), читать могут
+только администраторы и SYSTEM. Без токена приватные записи пропускаются с отметкой в журнале.
+`"InstallIfMissing": true` — ставить программу, если она ещё не установлена (по умолчанию kit только обновляет
+то, что есть). `Install.Type` `ZipScript` — распаковать архив и запустить из него скрипт (`"Script"`, по
+умолчанию `install.ps1`, `"Args"` — его параметры) от администратора; так ставится, например, приватный
+[win-baseline](https://github.com/gp131313/win-baseline) (запись есть в `config.json`).
+
 `"DownloadDir"` — куда класть скачанные установщики (по умолчанию `%LOCALAPPDATA%\WinAutoUpdate\download`).
 Если антивирус (например, Kaspersky) «держит» скрипты и установщики, запущенные из AppData или Program Files,
 поставьте kit в доверенную антивирусу папку (`Install.cmd -InstallDir C:\Trusted\WinAutoUpdate`) и укажите
@@ -146,3 +156,7 @@ of each entry in `config.json`, SHA256-checked against the release's `SHA256SUMS
 pending) and the kit itself. Install with `irm https://raw.githubusercontent.com/gp131313/win-auto-update/main/get.ps1 | iex`
 or unpack the release zip and run `Install.cmd`; remove via Settings → Apps → Win Auto Update. Log:
 `logs\update-<date>.log` in the install folder. MIT license.
+
+Private repositories: `"Private": true` in `GitHubApps`, the token is stored once with `Set-GitHubToken.ps1`
+(DPAPI, machine scope, administrators only); `"InstallIfMissing": true` installs an app that is not there yet;
+`Install.Type` `ZipScript` unpacks the release and runs its `install.ps1` elevated.

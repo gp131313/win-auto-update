@@ -5,6 +5,15 @@
   "VpnBypass": { "Enabled": false, "Hosts": [] },
   "GitHubApps": [
     {
+      "Name": "Win Baseline",
+      "Repo": "gp131313/win-baseline",
+      "Private": true,
+      "InstallIfMissing": true,
+      "Asset": "^win-baseline-v.*\\.zip$",
+      "Installed": { "Type": "Registry", "Key": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\WinBaseline" },
+      "Install": { "Type": "ZipScript", "Script": "install.ps1" }
+    },
+    {
       "Name": "Claude Usage Widget",
       "Repo": "gp131313/claude-usage-widget",
       "Asset": "^ClaudeUsageWidget-Setup-Silent\\.exe$",

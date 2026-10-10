@@ -18,11 +18,11 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
 if (-not $SourceDir) { $SourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
 
-$KitVersion = '1.1.1'
+$KitVersion = '1.2.0'
 $Task       = 'Win Auto Update'
 $LegacyTask = 'Winget Auto Update'
 $AppsKey    = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinAutoUpdate'
-$Files      = 'Update-Apps.ps1', 'Vpn-Bypass.ps1', 'install.ps1', 'uninstall.ps1', 'Install.cmd', 'Uninstall.cmd', 'config.json', 'exclude.txt', 'README.md', 'LICENSE'
+$Files      = 'Update-Apps.ps1', 'Vpn-Bypass.ps1', 'Set-GitHubToken.ps1', 'install.ps1', 'uninstall.ps1', 'Install.cmd', 'Uninstall.cmd', 'config.json', 'exclude.txt', 'README.md', 'LICENSE'
 $TaskVpn    = 'Win Auto Update (VPN bypass)'
 
 function Say([string]$t, [string]$c = 'Gray') { Write-Host $t -ForegroundColor $c }

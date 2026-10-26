@@ -2,5 +2,5 @@
 # One winget Id per line; text after # is a comment. Remove a line and "winget pin remove --id <Id>" to unpin.
 BillStewart.SyncthingWindowsSetup   # winget does not know the installed version; installer version != Syncthing version
 DominikReichl.KeePass               # the update closes KeePass and the KeeAgent SSH keys; update by hand with a plugins backup
-Anthropic.Claude                    # Claude Desktop updates itself; winget would close it mid-session
+# Hermes Agent и Hermes Desktop обновляются сами (hermes update), в winget их нет
 Microsoft.OpenSSH.Preview           # sshd (remote management) must not be reset by an update

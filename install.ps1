@@ -58,7 +58,7 @@ if (-not $Check) {
     }
     # exclusions of the old "Winget Auto Update" task are carried over once
     $legacyEx = Join-Path (Join-Path $SourceDir '..\winget-auto') 'exclude.txt'
-    foreach ($cand in @('C:\ClaudeScripts\winget-auto\exclude.txt', $legacyEx)) {
+    foreach ($cand in @('C:\HermesScripts\winget-auto\exclude.txt', 'C:\ClaudeScripts\winget-auto\exclude.txt', $legacyEx)) {
         if ((Test-Path $cand) -and -not (Test-Path (Join-Path $InstallDir 'exclude.txt.migrated'))) {
             $cur = Join-Path $InstallDir 'exclude.txt'
             $ids = @(Get-Content $cand | ForEach-Object { ($_ -replace '#.*$', '').Trim() } | Where-Object { $_ })

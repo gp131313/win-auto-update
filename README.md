@@ -18,7 +18,6 @@ MAX, Claude Usage Widget, домашний VPN-kit и обновления Windo
 
 Из коробки в `config.json` описаны:
 
-- **Claude Usage Widget** — `ClaudeUsageWidget-Setup-Silent.exe`, в ту же папку, где он стоит;
 - **Home VPN Kit** — `HomeVpnKit-Setup-Silent.exe`, в ту же папку (настройки и пароль VPN установщик сохраняет сам). Обновляется только установка, сделанная установщиком kit'а (есть запись в «Приложениях»); «ручные» копии скриптов не трогаются;
 - **TrayPingMonitor-VPN** — zip: индикатор останавливается, exe подменяется, индикатор запускается снова;
 - **Tabby** — `tabby-<версия>-setup-x64.exe /S /currentuser` (Tabby, поставленный своим установщиком, winget не видит);
